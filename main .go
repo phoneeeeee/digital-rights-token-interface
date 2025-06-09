@@ -418,7 +418,15 @@ func (tc *TokenContract) BuildPublishTokenTx(stub shim.CMStubInterface) protogo.
 		stub.Log(msg)
 		return shim.Error(msg)
 	}
+	// 校验 copyrightType 的值是否在 0~16 之间
+	if tokenObj.CopyrightType < 0 || tokenObj.CopyrightType > 16 {
+		return shim.Error(fmt.Sprintf("[TokenObject] copyrightType out of valid range (0-16), got: %d", tokenObj.CopyrightType))
+	}
 
+	// 校验 copyrightGetType 的值是否在 0~5 之间
+	if tokenObj.CopyrightGetType < 0 || tokenObj.CopyrightGetType > 5 {
+		return shim.Error(fmt.Sprintf("[TokenObject] copyrightGetType out of valid range (0-5), got: %d", tokenObj.CopyrightGetType))
+	}
 	// 5. 这里可根据 referenceFlag 判断通证类型, 做一些业务逻辑分支(可选)
 	//    例如：1=版权通证 -> 要求必须有copyrightType...
 	//          2=授权通证 -> ...
@@ -509,7 +517,28 @@ func (tc *TokenContract) BuildPublishApproveTokenTx(stub shim.CMStubInterface) p
 			return shim.Error(msg)
 		}
 	}
+	//校验 approveConstraints 的字段值范围
+	for i, constraint := range approveConstraints {
+		if constraint.ApproveStatus < 0 || constraint.ApproveStatus > 1 {
+			return shim.Error(fmt.Sprintf("[buildPublishApproveTokenTx] approveConstraints[%d].ApproveStatus out of range (0-1)", i))
+		}
+		if constraint.ApproveChannel < 0 || constraint.ApproveChannel > 4 {
+			return shim.Error(fmt.Sprintf("[buildPublishApproveTokenTx] approveConstraints[%d].ApproveChannel out of range (0-4)", i))
+		}
+		if constraint.ApproveArea < 0 || constraint.ApproveArea > 2 {
+			return shim.Error(fmt.Sprintf("[buildPublishApproveTokenTx] approveConstraints[%d].ApproveArea out of range (0-2)", i))
+		}
+		if constraint.ApproveTime < 0 || constraint.ApproveTime > 3 {
+			return shim.Error(fmt.Sprintf("[buildPublishApproveTokenTx] approveConstraints[%d].ApproveTime out of range (0-3)", i))
+		}
+	}
 
+	//校验 dutyList 的字段值范围
+	for i, duty := range dutyList {
+		if duty.DistributionMethod < 0 || duty.DistributionMethod > 3 {
+			return shim.Error(fmt.Sprintf("[buildPublishApproveTokenTx] dutyList[%d].DistributionMethod out of range (0-3)", i))
+		}
+	}
 	// 6. 构造 ApproveToken 对象
 	approveToken := &ApproveToken{
 		Publisher:          publisher,
