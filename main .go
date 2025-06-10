@@ -1,12 +1,13 @@
 package main
 
 import (
+	"chainmaker/pb/protogo"
+	"chainmaker/shim"
 	"encoding/json"
+	"fmt"
 	"log"
 	"math"
 	"strconv"
-	"chainmaker/pb/protogo"
-	"chainmaker/shim"
 )
 
 // TokenContract 合约对象
@@ -332,6 +333,12 @@ func (tc *TokenContract) BuildTokenIssueTx(stub shim.CMStubInterface) protogo.Re
 		stub.Log(msg)
 		return shim.Error(msg)
 	}
+	// 校验 referenceFlag 是否为 1、2 或 3
+	if referenceFlag != 1 && referenceFlag != 2 && referenceFlag != 3 {
+		msg := fmt.Sprintf("[buildTokenIssueTx] reference_flag out of valid range (1:版权通证, 2:授权通证, 3:操作许可通证), got: %d", referenceFlag)
+		stub.Log(msg)
+		return shim.Error(msg)
+	}
 
 	// 解析 roles
 	var roles []TokenRole
@@ -409,6 +416,12 @@ func (tc *TokenContract) BuildPublishTokenTx(stub shim.CMStubInterface) protogo.
 		stub.Log(msg)
 		return shim.Error(msg)
 	}
+	// 校验 referenceFlag 是否为 1、2 或 3
+	if referenceFlag != 1 && referenceFlag != 2 && referenceFlag != 3 {
+		msg := fmt.Sprintf("[buildTokenIssueTx] reference_flag out of valid range (1:版权通证, 2:授权通证, 3:操作许可通证), got: %d", referenceFlag)
+		stub.Log(msg)
+		return shim.Error(msg)
+	}
 
 	// 4. 解析 tokenObject
 	var tokenObj TokenObject
@@ -418,6 +431,7 @@ func (tc *TokenContract) BuildPublishTokenTx(stub shim.CMStubInterface) protogo.
 		stub.Log(msg)
 		return shim.Error(msg)
 	}
+
 	// 校验 copyrightType 的值是否在 0~16 之间
 	if tokenObj.CopyrightType < 0 || tokenObj.CopyrightType > 16 {
 		return shim.Error(fmt.Sprintf("[TokenObject] copyrightType out of valid range (0-16), got: %d", tokenObj.CopyrightType))
@@ -427,6 +441,7 @@ func (tc *TokenContract) BuildPublishTokenTx(stub shim.CMStubInterface) protogo.
 	if tokenObj.CopyrightGetType < 0 || tokenObj.CopyrightGetType > 5 {
 		return shim.Error(fmt.Sprintf("[TokenObject] copyrightGetType out of valid range (0-5), got: %d", tokenObj.CopyrightGetType))
 	}
+
 	// 5. 这里可根据 referenceFlag 判断通证类型, 做一些业务逻辑分支(可选)
 	//    例如：1=版权通证 -> 要求必须有copyrightType...
 	//          2=授权通证 -> ...
@@ -497,6 +512,17 @@ func (tc *TokenContract) BuildPublishApproveTokenTx(stub shim.CMStubInterface) p
 		stub.Log(msg)
 		return shim.Error(msg)
 	}
+	// === 查询版权通证状态 ===
+	detailKey := "publish_token_" + referenceID
+	detailBytes, err := stub.GetStateFromKeyByte(detailKey)
+	if err != nil {
+		msg := "[buildPublishApproveTokenTx] fail to GetState for referenceID " + referenceID + ": " + err.Error()
+		stub.Log(msg)
+		return shim.Error(msg)
+	}
+	if len(detailBytes) == 0 {
+		return shim.Error("[buildPublishApproveTokenTx] referenceID not found: no copyright token found")
+	}
 
 	// 4. 解析 approveConstraints 数组(JSON)
 	var approveConstraints []ApproveConstraint
@@ -539,6 +565,7 @@ func (tc *TokenContract) BuildPublishApproveTokenTx(stub shim.CMStubInterface) p
 			return shim.Error(fmt.Sprintf("[buildPublishApproveTokenTx] dutyList[%d].DistributionMethod out of range (0-3)", i))
 		}
 	}
+
 	// 6. 构造 ApproveToken 对象
 	approveToken := &ApproveToken{
 		Publisher:          publisher,
@@ -586,7 +613,7 @@ func (tc *TokenContract) BuildPubTokenTx(stub shim.CMStubInterface) protogo.Resp
 	receiver := string(args["receiver"])
 	tokenName := string(args["token"])
 	tokenId := string(args["tokenId"])
-	referenceId := string(args["referenceId"])  // 关联的版权通证ID
+	referenceId := string(args["referenceId"])  // 关联的授权通证ID
 	tokenInfosStr := string(args["tokenInfos"]) // JSON数组
 
 	// 校验必填项
@@ -603,7 +630,17 @@ func (tc *TokenContract) BuildPubTokenTx(stub shim.CMStubInterface) protogo.Resp
 			return shim.Error(msg)
 		}
 	}
-
+	// === 查询授权通证状态 ===
+	detailKey := "publish_token_" + referenceId
+	detailBytes, err := stub.GetStateFromKeyByte(detailKey)
+	if err != nil {
+		msg := "[buildPublishApproveTokenTx] fail to GetState for referenceID " + referenceId + ": " + err.Error()
+		stub.Log(msg)
+		return shim.Error(msg)
+	}
+	if len(detailBytes) == 0 {
+		return shim.Error("[buildPublishApproveTokenTx] referenceID not found: no copyright token found")
+	}
 	// 构造 PubTokenTx 对象
 	pubTx := &PubTokenTx{
 		Publisher:   publisher,
